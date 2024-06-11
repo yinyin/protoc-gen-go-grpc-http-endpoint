@@ -1,6 +1,10 @@
 
 pkg/**
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> 85c32c6... chore: add VCS ignore rules
 *.pydevproject
 .project
 .metadata
@@ -36,6 +40,3 @@ Icon
 *.test
 *.out
 .glide/
-
-/protoc-gen-ghe-gohttphandler
-/protoc-gen-ghe-ngxservice
