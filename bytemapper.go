@@ -20,10 +20,16 @@ type ByteMapper struct {
 	bits [2]uint64
 }
 
-// MarshalText implements TextMarshaler interface of encoding package.
-func (m *ByteMapper) MarshalText() ([]byte, error) {
+// String implements Stringer interface of fmt package.
+func (m *ByteMapper) String() string {
 	b0, b1 := m.ByteMap()
 	r := fmt.Sprintf("0x%016X 0x%016X", b0, b1)
+	return r
+}
+
+// MarshalText implements TextMarshaler interface of encoding package.
+func (m *ByteMapper) MarshalText() ([]byte, error) {
+	r := m.String()
 	return []byte(r), nil
 }
 
@@ -143,4 +149,52 @@ func (m *ByteMapper) SetByteMap(c []byte) int {
 // ByteMap return current bit mask of bytes enablement.
 func (m *ByteMapper) ByteMap() (uint64, uint64) {
 	return m.bits[0], m.bits[1]
+}
+
+func (m *ByteMapper) Empty() bool {
+	return (m.bits[0] == 0) && (m.bits[1] == 0)
+}
+
+func (m *ByteMapper) HaveIntersection(other *ByteMapper) bool {
+	return ((m.bits[0] & other.bits[0]) != 0) || ((m.bits[1] & other.bits[1]) != 0)
+}
+
+func (m *ByteMapper) Equal(other *ByteMapper) bool {
+	return (m.bits[0] == other.bits[0]) && (m.bits[1] == other.bits[1])
+}
+
+func (m *ByteMapper) Compare(other *ByteMapper) int {
+	if m.bits[0] < other.bits[0] {
+		return -1
+	}
+	if m.bits[0] > other.bits[0] {
+		return 1
+	}
+	if m.bits[1] < other.bits[1] {
+		return -1
+	}
+	if m.bits[1] > other.bits[1] {
+		return 1
+	}
+	return 0
+}
+
+type ByMapperMask []*ByteMapper
+
+func (a ByMapperMask) Len() int      { return len(a) }
+func (a ByMapperMask) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a ByMapperMask) Less(i, j int) bool {
+	return (a[i].bits[0] < a[j].bits[0]) || ((a[i].bits[0] == a[j].bits[0]) && (a[i].bits[1] < a[j].bits[1]))
+}
+
+func ByteMappersHaveIntersection(byteMappers []ByteMapper) bool {
+	byteMappersCount := len(byteMappers)
+	for i := 0; i < byteMappersCount; i++ {
+		for j := i + 1; j < byteMappersCount; j++ {
+			if byteMappers[i].HaveIntersection(&byteMappers[j]) {
+				return true
+			}
+		}
+	}
+	return false
 }
