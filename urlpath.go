@@ -1,8 +1,12 @@
 package protocgenghe
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"strconv"
+
+	"google.golang.org/protobuf/compiler/protogen"
 
 	"github.com/yinyin/protoc-gen-go-grpc-http-endpoint/sanitizer"
 )
@@ -14,6 +18,8 @@ import (
 // * /path/to/endpoint/entity/\{{proto_field}\}/options
 // * /path/to/endpoint/entity/id-{proto_field_1}/{proto_field_2}
 // * /path/to/endpoint/entity/id-{proto_field_1}/{proto_field_2}/options
+// * /path/to/endpoint/entity/id-{param_1 int32}/{param_2 string}/options
+// * /path/to/endpoint/entity/id-{param_1 int32}/{arg_open_api: param_2 string}/options
 // * /path/to/endpoint/entity/{^/, setterFn(string)}
 // * /path/to/endpoint/entity/{setterFn(int32)}
 // * /path/to/endpoint/entity/{setterFn(int32, hnd.ValueMask)}
@@ -32,26 +38,121 @@ const (
 	URLPathPartCapture
 )
 
-type URLPathPart struct {
-	RawPathPart []byte
+type CaptureDestFieldRef struct {
+	GoNameRef         []string
+	GoType            string
+	IsPresencePointer bool
+	DescRef           *protogen.Field
+}
 
+type URLBarePathPart struct {
 	PartType URLPathPartType
 
 	// URLPathPartFixed
 	FixedPath []byte
 
 	// URLPathPartCapture
-	CaptureName        string
-	PatternByteMapper  ByteMapper
-	DestFieldName      string
+	PatternByteMapper ByteMapper
+}
+
+func (part *URLBarePathPart) CanonicalText() string {
+	switch part.PartType {
+	case URLPathPartFixed:
+		return string(part.FixedPath)
+	case URLPathPartCapture:
+		return "{{capture: " + part.PatternByteMapper.String() + "}}"
+	}
+	return "{{?unknown-part-type: " + strconv.FormatInt(int64(part.PartType), 10) + "}}"
+}
+
+type URLBarePath struct {
+	Parts []*URLBarePathPart
+}
+
+func (p *URLBarePath) Compare(oth *URLBarePath) int {
+	for idx, locPart := range p.Parts {
+		if idx >= len(oth.Parts) {
+			return -1
+		}
+		othPart := oth.Parts[idx]
+		switch locPart.PartType {
+		case URLPathPartFixed:
+			if othPart.PartType != URLPathPartFixed {
+				return -1
+			}
+			if cmpResult := bytes.Compare(locPart.FixedPath, othPart.FixedPath); cmpResult != 0 {
+				if bytes.HasPrefix(locPart.FixedPath, othPart.FixedPath) {
+					return -1
+				}
+				if bytes.HasPrefix(othPart.FixedPath, locPart.FixedPath) {
+					return 1
+				}
+				return cmpResult
+			}
+		case URLPathPartCapture:
+			if othPart.PartType != URLPathPartCapture {
+				return 1
+			}
+			if cmpResult := locPart.PatternByteMapper.Compare(&othPart.PatternByteMapper); cmpResult != 0 {
+				return cmpResult
+			}
+		}
+	}
+	return 1
+}
+
+func (p *URLBarePath) CanonicalPath() string {
+	var result string
+	for _, part := range p.Parts {
+		result += part.CanonicalText()
+	}
+	return result
+}
+
+type URLPathPart struct {
+	URLBarePathPart
+
+	RawPathPart []byte
+
+	// URLPathPartFixed
+	//FixedPath []byte
+
+	// URLPathPartCapture
+	CaptureName string
+	//PatternByteMapper ByteMapper
+	// - to protobuf field property
+	DestFieldName string
+	DestFieldRef  *CaptureDestFieldRef
+	// - to protobuf field setter function
 	DestSetterFuncName string
 	DestSetterArg0Type string
 	DestSetterArgs     []string
+	// - to handler function parameter
+	DestHandlerParamName string
+	DestHandlerParamType string
 }
 
 type URLPath struct {
 	RawPath []byte
 	Parts   []*URLPathPart
+}
+
+func (u *URLPath) CanonicalPath() string {
+	var result string
+	for _, part := range u.Parts {
+		result += part.CanonicalText()
+	}
+	return result
+}
+
+func (u *URLPath) BarePath() *URLBarePath {
+	bareParts := make([]*URLBarePathPart, len(u.Parts))
+	for idx, part := range u.Parts {
+		bareParts[idx] = &part.URLBarePathPart
+	}
+	return &URLBarePath{
+		Parts: bareParts,
+	}
 }
 
 type urlPathPartParser interface {
@@ -78,9 +179,11 @@ func (p *fixedURLPathPartParser) seal(result *URLPath, idx int) {
 		fixedPathBuffer = p.fixedPathBuffer
 	}
 	result.Parts = append(result.Parts, &URLPathPart{
+		URLBarePathPart: URLBarePathPart{
+			PartType:  URLPathPartFixed,
+			FixedPath: fixedPathBuffer,
+		},
 		RawPathPart: rawPathPart,
-		PartType:    URLPathPartFixed,
-		FixedPath:   fixedPathBuffer,
 	})
 }
 
@@ -181,25 +284,46 @@ func (p *captureURLPathPartParser) parseSetterFn(
 	return
 }
 
-func (p *captureURLPathPartParser) parseFieldName(result *URLPath, idx int) (
-	fieldName string, nextIndex int, err error) {
-	fieldNameEndIndex := idx + 1
+func (p *captureURLPathPartParser) parseFieldNameOrHandlerParam(result *URLPath, idx int) (
+	fieldName, handlerParamName, handlerParamType string, nextIndex int, err error) {
+	targetEndIndex := idx + 1
+	lastSpaceIndex := 0
+	isHandlerParamMode := false
 	for idx > p.startIndex {
-		if ch := result.RawPath[idx]; (ch == '{') || (ch == ',') {
+		if ch := result.RawPath[idx]; (ch == '{') || (ch == ',') || (ch == ':') {
 			break
+		} else if ch == ' ' {
+			if lastSpaceIndex == 0 {
+				lastSpaceIndex = idx
+			}
+		} else if lastSpaceIndex != 0 {
+			isHandlerParamMode = true
 		}
 		idx--
 	}
 	nextIndex = idx
-	fieldNameStartIndex := idx + 1
-	if fieldNameStartIndex >= fieldNameEndIndex {
-		err = errors.New("invalid capture part: cannot have field name")
+	targetStartIndex := idx + 1
+	if targetStartIndex >= targetEndIndex {
+		err = errors.New("invalid capture part: cannot have field name or handler parameter")
 		return
 	}
-	fieldName = sanitizer.TrimCapturedSymbol(result.RawPath[fieldNameStartIndex:fieldNameEndIndex])
-	if fieldName == "" {
-		err = errors.New("invalid capture part: empty field name")
-		return
+	if isHandlerParamMode {
+		handlerParamName = sanitizer.TrimCapturedSymbol(result.RawPath[targetStartIndex:lastSpaceIndex])
+		if handlerParamName == "" {
+			err = errors.New("invalid capture part: empty handler parameter name")
+			return
+		}
+		handlerParamType = sanitizer.TrimCapturedSymbol(result.RawPath[(lastSpaceIndex + 1):targetEndIndex])
+		if handlerParamType == "" {
+			err = errors.New("invalid capture part: empty handler parameter type")
+			return
+		}
+	} else {
+		fieldName = sanitizer.CleanupFieldName(string(result.RawPath[targetStartIndex:targetEndIndex]))
+		if fieldName == "" {
+			err = errors.New("invalid capture part: empty field name")
+			return
+		}
 	}
 	return
 }
@@ -214,12 +338,13 @@ func (p *captureURLPathPartParser) doParse(result *URLPath, endIndex int) (err e
 		}
 	}
 	var fieldName string
+	var hndParamName, hndParamType string
 	var setterFuncName, setterArg0Type string
 	var setterArgs []string
 	if result.RawPath[idx] == ')' {
 		setterFuncName, setterArg0Type, setterArgs, idx, err = p.parseSetterFn(result, idx)
 	} else {
-		fieldName, idx, err = p.parseFieldName(result, idx)
+		fieldName, hndParamName, hndParamType, idx, err = p.parseFieldNameOrHandlerParam(result, idx)
 	}
 	var patternByteMapper ByteMapper
 	if result.RawPath[idx] == ',' {
@@ -239,14 +364,18 @@ func (p *captureURLPathPartParser) doParse(result *URLPath, endIndex int) (err e
 		captureName = sanitizer.TrimCapturedSymbol(result.RawPath[p.startIndex+1 : p.firstColonIndex])
 	}
 	result.Parts = append(result.Parts, &URLPathPart{
-		RawPathPart:        result.RawPath[p.startIndex : endIndex+1],
-		PartType:           URLPathPartCapture,
-		CaptureName:        captureName,
-		PatternByteMapper:  patternByteMapper,
-		DestFieldName:      fieldName,
-		DestSetterFuncName: setterFuncName,
-		DestSetterArg0Type: setterArg0Type,
-		DestSetterArgs:     setterArgs,
+		URLBarePathPart: URLBarePathPart{
+			PartType:          URLPathPartCapture,
+			PatternByteMapper: patternByteMapper,
+		},
+		RawPathPart:          result.RawPath[p.startIndex : endIndex+1],
+		CaptureName:          captureName,
+		DestFieldName:        fieldName,
+		DestSetterFuncName:   setterFuncName,
+		DestSetterArg0Type:   setterArg0Type,
+		DestSetterArgs:       setterArgs,
+		DestHandlerParamName: hndParamName,
+		DestHandlerParamType: hndParamType,
 	})
 	return
 }
@@ -300,4 +429,17 @@ func ParseURLPath(path string) (*URLPath, error) {
 		return nil, err
 	}
 	return &result, nil
+}
+
+// CheckURLPaths return error if any part in given urlPaths is unknown or invalid.
+func CheckURLPaths(urlPaths []*URLPath) (err error) {
+	for _, urlPath := range urlPaths {
+		for idx, part := range urlPath.Parts {
+			if part.PartType == URLPathPartUnknown {
+				err = fmt.Errorf("unknown part type for [%s]: (%d) [%s]", string(urlPath.RawPath), idx, string(part.RawPathPart))
+				return
+			}
+		}
+	}
+	return
 }
