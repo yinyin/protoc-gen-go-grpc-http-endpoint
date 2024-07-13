@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+package grpc.httpendpoint;
+
+option go_package = "github.com/yinyin/protoc-gen-go-grpc-http-endpoint/ghegen";
+
+import "google/protobuf/descriptor.proto";
+
+// https://protobuf.dev/programming-guides/proto2/#customoptions
+// https://github.com/protocolbuffers/protobuf/blob/main/src/google/protobuf/descriptor.proto
+// https://github.com/grpc-ecosystem/grpc-gateway/blob/main/protoc-gen-openapiv2/options/annotations.proto
+
+extend google.protobuf.FileOptions {
+  GHEFileOptions opts = 50002;
+}
+
+message GHEFileOptions {
+	// Naming convention for generated (default) path.
+	// Will not affect manually set path.
+	// Acceptable values: `kebab-case`, `snake_case`, `lowerCamelCase`, `UpperCamelCase` or leave empty for not doing any convert.
+	string path_naming_convention = 1;
+	repeated string common_initialisms = 2;
+	map<string, string> naming_override = 3;
+}
+
+extend google.protobuf.ServiceOptions {
+  GHEServiceOptions base = 50002;
+}
+
+message GHEServiceOptions {
+	string path = 1;
+	string strict_prefix_match = 2;
+
+	repeated GHEMethodOptions extra_endpoints = 3;
+}
+
+extend google.protobuf.MethodOptions {
+	GHEMethodOptions endpoint = 50002;
+}
+
+message GHEMethodOptions {
+	// Path for invoke this method with HTTP GET method.
+	// Set to `*` to use default value.
+	// Set to `=method` (ie. `=post`) to use value set for other HTTP method.
+	string get = 1;
+	string post = 2;
+	string put = 3;
+	string delete = 4;
+	string patch = 5;
+
+	// Handler function for HEAD method. Applies to all above paths.
+	string go_head_handler_func = 6;
+
+	// Handler function for OPTIONS method. Applies to all above paths.
+	string go_options_handler_func = 7;
+
+
+	// Function to extract custom HTTP status code from reply object.
+	// HTTP status code for error object will not be able to customize.
+	string go_extract_http_status_code = 8;
+
+	// Define the identifier for this endpoint.
+	// Use method name if omitted. Required for extra endpoints.
+	string ident = 9;
+
+	// Handler function name for extra endpoint.
+	// string go_handler_func = 10;
+}
