@@ -64,5 +64,5 @@ message GHEMethodOptions {
 	string ident = 9;
 
 	// Handler function name for extra endpoint.
-	// string go_handler_func = 10;
+	string go_handler_func = 10;
 }
