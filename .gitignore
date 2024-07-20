@@ -40,3 +40,6 @@ Icon
 *.test
 *.out
 .glide/
+
+/parse-url-path
+/protoc-gen-ghe-gohttphandler
