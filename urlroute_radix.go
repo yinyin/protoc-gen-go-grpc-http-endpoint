@@ -61,9 +61,12 @@ func (n *URLRouteRadixNode) increaseChildrenDepth() {
 	}
 }
 
-func (n *URLRouteRadixNode) splitNode(commonPrefixLen int) error {
+func (n *URLRouteRadixNode) splitNode(commonPrefixLen int) (bool, error) {
 	if n.Part.PartType != URLPathPartFixed {
-		return errors.New("splitNode on non-fixed path")
+		return false, errors.New("splitNode on non-fixed path")
+	}
+	if len(n.Part.FixedPath) <= commonPrefixLen {
+		return false, nil
 	}
 	n.increaseChildrenDepth()
 	subNode := &URLRouteRadixNode{
@@ -78,7 +81,7 @@ func (n *URLRouteRadixNode) splitNode(commonPrefixLen int) error {
 	n.Part.FixedPath = n.Part.FixedPath[:commonPrefixLen]
 	n.Children = []*URLRouteRadixNode{subNode}
 	n.Leaf = nil
-	return nil
+	return true, nil
 }
 
 // appendChildPart appends a child node with the given part to the current node.
@@ -118,8 +121,13 @@ func (n *URLRouteRadixNode) insertChildPartWithURLPathPartFixed(childPart *URLBa
 				PartType:  URLPathPartFixed,
 				FixedPath: childPart.FixedPath[commPrefixLen:],
 			}
-			childNode.splitNode(commPrefixLen)
-			childNode.appendChildPart(&splitedChildPart, remainParts, endpointPath)
+			if splited, err := childNode.splitNode(commPrefixLen); nil != err {
+				return err
+			} else if splited {
+				childNode.appendChildPart(&splitedChildPart, remainParts, endpointPath)
+			} else {
+				childNode.insertChildPart(&splitedChildPart, remainParts, endpointPath)
+			}
 			return nil
 		}
 	}
