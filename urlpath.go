@@ -45,6 +45,30 @@ type CaptureDestFieldRef struct {
 	DescRef           *protogen.Field
 }
 
+type URLPartGoTypeVote struct {
+	CaptureIndex int
+	Votes        map[string]int
+	UnknownTypes []string
+}
+
+func NewURLPartGoTypeVote(captureIndex int) *URLPartGoTypeVote {
+	return &URLPartGoTypeVote{
+		CaptureIndex: captureIndex,
+		Votes:        make(map[string]int),
+	}
+}
+
+func (vote *URLPartGoTypeVote) Vote(goType string) {
+	if _, ok := vote.Votes[goType]; ok {
+		vote.Votes[goType]++
+	} else {
+		vote.Votes[goType] = 1
+		if _, supportType := DefaultURLPartTypePatterns[goType]; !supportType {
+			vote.UnknownTypes = append(vote.UnknownTypes, goType)
+		}
+	}
+}
+
 type URLBarePathPart struct {
 	PartType URLPathPartType
 
@@ -53,6 +77,7 @@ type URLBarePathPart struct {
 
 	// URLPathPartCapture
 	PatternByteMapper ByteMapper
+	CaptureGoTypeVote *URLPartGoTypeVote
 }
 
 func (part *URLBarePathPart) CanonicalText() string {
@@ -109,6 +134,20 @@ func (p *URLBarePath) CanonicalPath() string {
 	return result
 }
 
+func (p *URLBarePath) SetupCaptureGoTypeVotes() (votes []*URLPartGoTypeVote) {
+	captureIndex := 0
+	for _, part := range p.Parts {
+		if part.PartType != URLPathPartCapture {
+			continue
+		}
+		v := NewURLPartGoTypeVote(captureIndex)
+		captureIndex++
+		part.CaptureGoTypeVote = v
+		votes = append(votes, v)
+	}
+	return
+}
+
 type URLPathPart struct {
 	URLBarePathPart
 
@@ -132,6 +171,22 @@ type URLPathPart struct {
 	DestHandlerParamType string
 }
 
+func (part *URLPathPart) CaptureGoType() string {
+	if part.PartType != URLPathPartCapture {
+		return ""
+	}
+	if part.DestFieldRef != nil {
+		return part.DestFieldRef.GoType
+	}
+	if part.DestSetterArg0Type != "" {
+		return part.DestSetterArg0Type
+	}
+	if part.DestHandlerParamType != "" {
+		return part.DestHandlerParamType
+	}
+	return "unknownCaptureGoType??"
+}
+
 type URLPath struct {
 	RawPath []byte
 	Parts   []*URLPathPart
@@ -153,6 +208,15 @@ func (u *URLPath) BarePath() *URLBarePath {
 	return &URLBarePath{
 		Parts: bareParts,
 	}
+}
+
+func (u *URLPath) VoteCaptureGoTypes() (votes []string) {
+	for _, part := range u.Parts {
+		if part.PartType == URLPathPartCapture {
+			votes = append(votes, part.CaptureGoType())
+		}
+	}
+	return
 }
 
 type urlPathPartParser interface {
