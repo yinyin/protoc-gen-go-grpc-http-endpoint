@@ -19,6 +19,8 @@ type EndpointService struct {
 	ProtoFilePath string
 	GoImportPath  protogen.GoImportPath
 
+	GoServerType string
+
 	RouteIdentMiddle     string
 	URLPath              string
 	StrictPrefixMatchLen int
@@ -35,6 +37,7 @@ func NewEndpointService(
 	goImportPath protogen.GoImportPath,
 	descRef *protogen.Service,
 	pathNamingConv NamingConventionConverter) *EndpointService {
+	goServerType := descRef.GoName + "Server" // Need sync with https://github.com/grpc/grpc-go/blob/64adc816bf5a26ea98dec5d46ef25a649d8dc94f/cmd/protoc-gen-go-grpc/grpc.go#L264
 	var defaultURLParts []string
 	if desc0 := descRef.Desc.Parent(); desc0 != nil {
 		pathPart := pathNamingConv.ConvertConvention(string(desc0.Name()))
@@ -44,6 +47,7 @@ func NewEndpointService(
 	return &EndpointService{
 		ProtoFilePath:    protoFilePath,
 		GoImportPath:     goImportPath,
+		GoServerType:     goServerType,
 		RouteIdentMiddle: descRef.GoName,
 		URLPath:          strings.Join(defaultURLParts, "."),
 		DescRef:          descRef,
@@ -325,6 +329,8 @@ func (m *EndpointURLPathMethod) String() string {
 type EndpointPath struct {
 	URLBarePath URLBarePath
 
+	CaptureGoTypeVotes []*URLPartGoTypeVote
+
 	GetRef    *EndpointURLPathMethod
 	PostRef   *EndpointURLPathMethod
 	PutRef    *EndpointURLPathMethod
@@ -333,6 +339,21 @@ type EndpointPath struct {
 
 	HeadRef    *EndpointURLPathMethod
 	OptionsRef *EndpointURLPathMethod
+}
+
+func (p *EndpointPath) SetupCaptureGoTypeVotes() {
+	p.CaptureGoTypeVotes = p.URLBarePath.SetupCaptureGoTypeVotes()
+}
+
+func (p *EndpointPath) ApplyCaptureGoTypeVotes(votes []string) (err error) {
+	if len(votes) != len(p.CaptureGoTypeVotes) {
+		err = fmt.Errorf("mismatched votes count: %d != %d", len(votes), len(p.CaptureGoTypeVotes))
+		return
+	}
+	for idx, vote := range votes {
+		p.CaptureGoTypeVotes[idx].Vote(vote)
+	}
+	return
 }
 
 func (p *EndpointPath) String() string {
@@ -372,6 +393,8 @@ type EndpointPathContainer struct {
 
 	Services map[string]*EndpointService
 
+	RouteIdents map[string]struct{}
+
 	cachedSortedPaths    []*EndpointPath
 	cachedSortedServices []*EndpointService
 
@@ -380,8 +403,9 @@ type EndpointPathContainer struct {
 
 func NewEndpointPathContainer() *EndpointPathContainer {
 	return &EndpointPathContainer{
-		Paths:    make(map[string]*EndpointPath),
-		Services: make(map[string]*EndpointService),
+		Paths:       make(map[string]*EndpointPath),
+		Services:    make(map[string]*EndpointService),
+		RouteIdents: make(map[string]struct{}),
 	}
 }
 
@@ -434,6 +458,11 @@ func (c *EndpointPathContainer) parseURLPathWithEndpointMethod(urlPath string, e
 	return
 }
 
+func (c *EndpointPathContainer) addRouteIdent(method, routeIdentTail string) {
+	routeIdent := MakeRouteIdent(method, routeIdentTail)
+	c.RouteIdents[routeIdent] = struct{}{}
+}
+
 func (c *EndpointPathContainer) AddEndpointPath(urlPath, method string, endpointMethodRef *EndpointMethod) {
 	c.Traces = append(c.Traces, urlPath+"\t["+method+"]\t"+endpointMethodRef.DescRef.GoName)
 	urlPathParsed, err := c.parseURLPathWithEndpointMethod(urlPath, endpointMethodRef, method)
@@ -446,6 +475,7 @@ func (c *EndpointPathContainer) AddEndpointPath(urlPath, method string, endpoint
 		endpointPath = &EndpointPath{
 			URLBarePath: *urlPathParsed.BarePath(),
 		}
+		endpointPath.SetupCaptureGoTypeVotes()
 		c.Paths[canonicalPath] = endpointPath
 	}
 	urlPathMethodRef := &EndpointURLPathMethod{
@@ -470,6 +500,10 @@ func (c *EndpointPathContainer) AddEndpointPath(urlPath, method string, endpoint
 	default:
 		c.AppendError(urlPath, method, endpointMethodRef, "unsupported method: [", method, "]")
 	}
+	if err := endpointPath.ApplyCaptureGoTypeVotes(urlPathParsed.VoteCaptureGoTypes()); nil != err {
+		c.AppendError(urlPath, method, endpointMethodRef, "cannot apply VoteCaptureGoTypes: [", err.Error(), "]")
+	}
+	c.addRouteIdent(method, endpointMethodRef.RouteIdentTail)
 	if endpointMethodRef.ParentService != nil {
 		c.Services[endpointMethodRef.ParentService.DescRef.GoName] = endpointMethodRef.ParentService
 		c.cachedSortedServices = nil
@@ -501,4 +535,13 @@ func (c *EndpointPathContainer) SortedEndpointServices() []*EndpointService {
 		c.cachedSortedServices = append(c.cachedSortedServices, c.Services[ident])
 	}
 	return c.cachedSortedServices
+}
+
+func (c *EndpointPathContainer) SortedRouteIdents() []string {
+	routeIdents := make([]string, 0, len(c.RouteIdents))
+	for ident := range c.RouteIdents {
+		routeIdents = append(routeIdents, ident)
+	}
+	sort.Sort(ByRouteIdent(routeIdents))
+	return routeIdents
 }
