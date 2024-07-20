@@ -19,3 +19,15 @@ var DefaultURLPartTypePatterns = map[string][]byte{
 	"string":  DefaultURLPartTextPattern,
 	"[]byte":  DefaultURLPartTextPattern,
 }
+
+var SupportedURLPartTypes = []string{
+	"bool",
+	"int32",
+	"uint32",
+	"int64",
+	"uint64",
+	"float32",
+	"float64",
+	"string",
+	"[]byte",
+}
