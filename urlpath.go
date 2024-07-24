@@ -54,6 +54,7 @@ type URLBarePathPart struct {
 	// URLPathPartCapture
 	PatternByteMapper ByteMapper
 	CaptureGoTypeVote *URLPartGoTypeVote
+	CaptureGoFuncSig  *CaptureFnSignature
 }
 
 func (part *URLBarePathPart) CanonicalText() string {
@@ -120,6 +121,18 @@ func (p *URLBarePath) SetupCaptureGoTypeVotes() (votes []*URLPartGoTypeVote) {
 		captureIndex++
 		part.CaptureGoTypeVote = v
 		votes = append(votes, v)
+	}
+	return
+}
+
+func (p *URLBarePath) SetupCaptureGoFuncSig() (fnSigs []*CaptureFnSignature) {
+	for _, part := range p.Parts {
+		if part.PartType != URLPathPartCapture {
+			continue
+		}
+		sig := NewCaptureParserSignature(part)
+		part.CaptureGoFuncSig = sig
+		fnSigs = append(fnSigs, sig)
 	}
 	return
 }

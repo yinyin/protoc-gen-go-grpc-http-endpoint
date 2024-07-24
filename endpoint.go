@@ -395,8 +395,9 @@ type EndpointPathContainer struct {
 
 	RouteIdents map[string]struct{}
 
-	cachedSortedPaths    []*EndpointPath
-	cachedSortedServices []*EndpointService
+	cachedSortedPaths       []*EndpointPath
+	cachedSortedServices    []*EndpointService
+	cachedCaptureGoFuncSigs []CaptureFnSignature
 
 	Traces []string
 }
@@ -509,6 +510,7 @@ func (c *EndpointPathContainer) AddEndpointPath(urlPath, method string, endpoint
 		c.cachedSortedServices = nil
 	}
 	c.cachedSortedPaths = nil
+	c.cachedCaptureGoFuncSigs = nil
 }
 
 func (c *EndpointPathContainer) SortedEndpointPaths() []*EndpointPath {
@@ -544,4 +546,25 @@ func (c *EndpointPathContainer) SortedRouteIdents() []string {
 	}
 	sort.Sort(ByRouteIdent(routeIdents))
 	return routeIdents
+}
+
+func (c *EndpointPathContainer) CollectCaptureGoFuncSigs() []CaptureFnSignature {
+	if c.cachedCaptureGoFuncSigs != nil {
+		return c.cachedCaptureGoFuncSigs
+	}
+	aux := make(map[CaptureFnSignature]struct{})
+	for _, ep := range c.Paths {
+		funcSigs := ep.URLBarePath.SetupCaptureGoFuncSig()
+		for _, sig := range funcSigs {
+			k := *sig
+			aux[k] = struct{}{}
+		}
+	}
+	var goFuncSigs []CaptureFnSignature
+	for sig := range aux {
+		goFuncSigs = append(goFuncSigs, sig)
+	}
+	sort.Sort(OrderCaptureFnSig(goFuncSigs))
+	c.cachedCaptureGoFuncSigs = goFuncSigs
+	return goFuncSigs
 }
