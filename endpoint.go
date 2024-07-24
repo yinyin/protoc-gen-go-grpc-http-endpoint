@@ -314,6 +314,13 @@ func (em *EndpointMethod) FindInputFieldRef(fieldName string) (fieldRef *Capture
 	return
 }
 
+func (em *EndpointMethod) IsStreamMethod() bool {
+	if em.DescRef == nil {
+		return false
+	}
+	return em.DescRef.Desc.IsStreamingClient() || em.DescRef.Desc.IsStreamingServer()
+}
+
 type EndpointURLPathMethod struct {
 	URLPath   *URLPath
 	MethodRef *EndpointMethod
@@ -393,7 +400,8 @@ type EndpointPathContainer struct {
 
 	Services map[string]*EndpointService
 
-	RouteIdents map[string]struct{}
+	RouteIdents   map[string]struct{}
+	StreamMethods map[string]*protogen.Method
 
 	cachedSortedPaths       []*EndpointPath
 	cachedSortedServices    []*EndpointService
@@ -404,9 +412,10 @@ type EndpointPathContainer struct {
 
 func NewEndpointPathContainer() *EndpointPathContainer {
 	return &EndpointPathContainer{
-		Paths:       make(map[string]*EndpointPath),
-		Services:    make(map[string]*EndpointService),
-		RouteIdents: make(map[string]struct{}),
+		Paths:         make(map[string]*EndpointPath),
+		Services:      make(map[string]*EndpointService),
+		RouteIdents:   make(map[string]struct{}),
+		StreamMethods: make(map[string]*protogen.Method),
 	}
 }
 
@@ -464,6 +473,16 @@ func (c *EndpointPathContainer) addRouteIdent(method, routeIdentTail string) {
 	c.RouteIdents[routeIdent] = struct{}{}
 }
 
+func (c *EndpointPathContainer) recordStreamMethod(endpointMethodRef *EndpointMethod) {
+	if !endpointMethodRef.IsStreamMethod() {
+		return
+	}
+	k := endpointMethodRef.DescRef.Parent.GoName + "_" + endpointMethodRef.DescRef.GoName
+	if c.StreamMethods[k] == nil {
+		c.StreamMethods[k] = endpointMethodRef.DescRef
+	}
+}
+
 func (c *EndpointPathContainer) AddEndpointPath(urlPath, method string, endpointMethodRef *EndpointMethod) {
 	c.Traces = append(c.Traces, urlPath+"\t["+method+"]\t"+endpointMethodRef.DescRef.GoName)
 	urlPathParsed, err := c.parseURLPathWithEndpointMethod(urlPath, endpointMethodRef, method)
@@ -505,6 +524,7 @@ func (c *EndpointPathContainer) AddEndpointPath(urlPath, method string, endpoint
 		c.AppendError(urlPath, method, endpointMethodRef, "cannot apply VoteCaptureGoTypes: [", err.Error(), "]")
 	}
 	c.addRouteIdent(method, endpointMethodRef.RouteIdentTail)
+	c.recordStreamMethod(endpointMethodRef)
 	if endpointMethodRef.ParentService != nil {
 		c.Services[endpointMethodRef.ParentService.DescRef.GoName] = endpointMethodRef.ParentService
 		c.cachedSortedServices = nil
@@ -567,4 +587,21 @@ func (c *EndpointPathContainer) CollectCaptureGoFuncSigs() []CaptureFnSignature 
 	sort.Sort(OrderCaptureFnSig(goFuncSigs))
 	c.cachedCaptureGoFuncSigs = goFuncSigs
 	return goFuncSigs
+}
+
+func (c *EndpointPathContainer) SortedStreamMethods() []*protogen.Method {
+	if len(c.StreamMethods) == 0 {
+		return nil
+	}
+	methodKeys := make([]string, 0, len(c.StreamMethods))
+	for k := range c.StreamMethods {
+		methodKeys = append(methodKeys, k)
+	}
+	slices.Sort(methodKeys)
+	streamMethods := make([]*protogen.Method, 0, len(c.StreamMethods))
+	for _, k := range methodKeys {
+		m := c.StreamMethods[k]
+		streamMethods = append(streamMethods, m)
+	}
+	return streamMethods
 }
