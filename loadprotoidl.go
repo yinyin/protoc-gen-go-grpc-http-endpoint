@@ -12,11 +12,6 @@ import (
 	"github.com/yinyin/protoc-gen-go-grpc-http-endpoint/ghegen"
 )
 
-const (
-	dbgFileNamePrefix = "debug-protoc-gen-ghe-gohttphandler_"
-	dbgImportPath     = "github.com/yinyin/protoc-gen-go-grpc-http-endpoint/cmd/protoc-gen-ghe-gohttphandler/debug"
-)
-
 func logRuntimeInformation(dbgFp *GeneratedDebugFile, gen *protogen.Plugin) {
 	dbgFp.P(">> run at: ", time.Now())
 	dbgFp.P("> protoc-gen-go-grpc-http-endpoint version: v", CodeFullVersion)
@@ -34,13 +29,13 @@ type OneCodeGenDestInfo struct {
 	SourceProtoFilePaths    []string
 }
 
-func LoadProtoIDL(gen *protogen.Plugin, generateDebugInfo bool) (
+func LoadProtoIDL(gen *protogen.Plugin, dbgFileOpts *GeneratedDebugFileParam) (
 	targetEndpointServices []*EndpointService,
 	endpointPathContainer *EndpointPathContainer,
 	destInfo *OneCodeGenDestInfo,
 	dbgFp *GeneratedDebugFile) {
-	if generateDebugInfo {
-		dbgFp = NewGeneratedDebugFile(gen, dbgFileNamePrefix, dbgImportPath)
+	if dbgFileOpts != nil {
+		dbgFp = NewGeneratedDebugFile(gen, dbgFileOpts)
 		logRuntimeInformation(dbgFp, gen)
 	}
 	targetEndpointServices = make([]*EndpointService, 0)

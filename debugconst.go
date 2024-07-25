@@ -10,13 +10,18 @@ func MakeDebugFileName(namePrefix string) string {
 	return namePrefix + time.Now().Format("20060102_150405.000000000") + ".txt"
 }
 
+type GeneratedDebugFileParam struct {
+	NamePrefix   string
+	GoImportPath protogen.GoImportPath
+}
+
 type GeneratedDebugFile struct {
 	g *protogen.GeneratedFile
 }
 
-func NewGeneratedDebugFile(gen *protogen.Plugin, namePrefix string, goImportPath protogen.GoImportPath) *GeneratedDebugFile {
+func NewGeneratedDebugFile(gen *protogen.Plugin, opts *GeneratedDebugFileParam) *GeneratedDebugFile {
 	return &GeneratedDebugFile{
-		g: gen.NewGeneratedFile(MakeDebugFileName(namePrefix), goImportPath),
+		g: gen.NewGeneratedFile(MakeDebugFileName(opts.NamePrefix), opts.GoImportPath),
 	}
 }
 
