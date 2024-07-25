@@ -43,3 +43,5 @@ Icon
 
 /parse-url-path
 /protoc-gen-ghe-gohttphandler
+/protoc-gen-ghe-ngxservice
+
