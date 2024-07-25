@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	nameconv "github.com/yinyin/go-convert-naming-convention"
 	"google.golang.org/protobuf/compiler/protogen"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -20,6 +21,8 @@ type EndpointService struct {
 	GoImportPath  protogen.GoImportPath
 
 	GoServerType string
+
+	NgxNamingConvOpts *nameconv.Options
 
 	RouteIdentMiddle     string
 	URLPath              string
@@ -36,7 +39,8 @@ func NewEndpointService(
 	protoFilePath string,
 	goImportPath protogen.GoImportPath,
 	descRef *protogen.Service,
-	pathNamingConv NamingConventionConverter) *EndpointService {
+	pathNamingConv NamingConventionConverter,
+	ngxNamingConvOpts *nameconv.Options) *EndpointService {
 	goServerType := descRef.GoName + "Server" // Need sync with https://github.com/grpc/grpc-go/blob/64adc816bf5a26ea98dec5d46ef25a649d8dc94f/cmd/protoc-gen-go-grpc/grpc.go#L264
 	var defaultURLParts []string
 	if desc0 := descRef.Desc.Parent(); desc0 != nil {
@@ -45,12 +49,13 @@ func NewEndpointService(
 	}
 	defaultURLParts = append(defaultURLParts, pathNamingConv.ConvertConvention(descRef.GoName))
 	return &EndpointService{
-		ProtoFilePath:    protoFilePath,
-		GoImportPath:     goImportPath,
-		GoServerType:     goServerType,
-		RouteIdentMiddle: descRef.GoName,
-		URLPath:          strings.Join(defaultURLParts, "."),
-		DescRef:          descRef,
+		ProtoFilePath:     protoFilePath,
+		GoImportPath:      goImportPath,
+		GoServerType:      goServerType,
+		NgxNamingConvOpts: ngxNamingConvOpts,
+		RouteIdentMiddle:  descRef.GoName,
+		URLPath:           strings.Join(defaultURLParts, "."),
+		DescRef:           descRef,
 	}
 }
 
@@ -118,6 +123,15 @@ type EndpointMethod struct {
 	Options ghegen.GHEMethodOptions
 
 	CachedInputFieldRef map[string]*CaptureDestFieldRef
+
+	EndpointGetURLPath    *URLPath
+	EndpointPostURLPath   *URLPath
+	EndpointPutURLPath    *URLPath
+	EndpointDeleteURLPath *URLPath
+	EndpointPatchURLPath  *URLPath
+
+	EndpointHeadURLPath    *URLPath
+	EndpointOptionsURLPath *URLPath
 }
 
 func NewEndpointMethod(
@@ -321,6 +335,35 @@ func (em *EndpointMethod) IsStreamMethod() bool {
 	return em.DescRef.Desc.IsStreamingClient() || em.DescRef.Desc.IsStreamingServer()
 }
 
+func (em *EndpointMethod) setEndpointURLPath(method string, urlPathParsed *URLPath) (existedRef *URLPath, err error) {
+	switch method {
+	case http.MethodGet:
+		existedRef = em.EndpointGetURLPath
+		em.EndpointGetURLPath = urlPathParsed
+	case http.MethodPost:
+		existedRef = em.EndpointPostURLPath
+		em.EndpointPostURLPath = urlPathParsed
+	case http.MethodPut:
+		existedRef = em.EndpointPutURLPath
+		em.EndpointPutURLPath = urlPathParsed
+	case http.MethodDelete:
+		existedRef = em.EndpointDeleteURLPath
+		em.EndpointDeleteURLPath = urlPathParsed
+	case http.MethodPatch:
+		existedRef = em.EndpointPatchURLPath
+		em.EndpointPatchURLPath = urlPathParsed
+	case http.MethodHead:
+		existedRef = em.EndpointHeadURLPath
+		em.EndpointHeadURLPath = urlPathParsed
+	case http.MethodOptions:
+		existedRef = em.EndpointOptionsURLPath
+		em.EndpointOptionsURLPath = urlPathParsed
+	default:
+		err = fmt.Errorf("unsupported method: [%s]", method)
+	}
+	return
+}
+
 type EndpointURLPathMethod struct {
 	URLPath   *URLPath
 	MethodRef *EndpointMethod
@@ -359,6 +402,35 @@ func (p *EndpointPath) ApplyCaptureGoTypeVotes(votes []string) (err error) {
 	}
 	for idx, vote := range votes {
 		p.CaptureGoTypeVotes[idx].Vote(vote)
+	}
+	return
+}
+
+func (p *EndpointPath) setEndpointURLPathMethod(method string, urlPathMethodRef *EndpointURLPathMethod) (existedRef *EndpointURLPathMethod, err error) {
+	switch method {
+	case http.MethodGet:
+		existedRef = p.GetRef
+		p.GetRef = urlPathMethodRef
+	case http.MethodPost:
+		existedRef = p.PostRef
+		p.PostRef = urlPathMethodRef
+	case http.MethodPut:
+		existedRef = p.PutRef
+		p.PutRef = urlPathMethodRef
+	case http.MethodDelete:
+		existedRef = p.DeleteRef
+		p.DeleteRef = urlPathMethodRef
+	case http.MethodPatch:
+		existedRef = p.PatchRef
+		p.PatchRef = urlPathMethodRef
+	case http.MethodHead:
+		existedRef = p.HeadRef
+		p.HeadRef = urlPathMethodRef
+	case http.MethodOptions:
+		existedRef = p.OptionsRef
+		p.OptionsRef = urlPathMethodRef
+	default:
+		err = fmt.Errorf("unsupported method: [%s]", method)
 	}
 	return
 }
@@ -502,23 +574,15 @@ func (c *EndpointPathContainer) AddEndpointPath(urlPath, method string, endpoint
 		URLPath:   urlPathParsed,
 		MethodRef: endpointMethodRef,
 	}
-	switch method {
-	case http.MethodGet:
-		endpointPath.GetRef = urlPathMethodRef
-	case http.MethodPost:
-		endpointPath.PostRef = urlPathMethodRef
-	case http.MethodPut:
-		endpointPath.PutRef = urlPathMethodRef
-	case http.MethodDelete:
-		endpointPath.DeleteRef = urlPathMethodRef
-	case http.MethodPatch:
-		endpointPath.PatchRef = urlPathMethodRef
-	case http.MethodHead:
-		endpointPath.HeadRef = urlPathMethodRef
-	case http.MethodOptions:
-		endpointPath.OptionsRef = urlPathMethodRef
-	default:
-		c.AppendError(urlPath, method, endpointMethodRef, "unsupported method: [", method, "]")
+	if existedRef, err := endpointPath.setEndpointURLPathMethod(method, urlPathMethodRef); nil != err {
+		c.AppendError(urlPath, method, endpointMethodRef, "cannot set urlPathMethodRef to endpoint: [", err.Error(), "]")
+	} else if existedRef != nil {
+		c.AppendError(urlPath, method, endpointMethodRef, "duplicate urlPathMethodRef on endpoint: [", existedRef.MethodRef.RouteIdentTail, "] vs. [", endpointMethodRef.RouteIdentTail, "]")
+	}
+	if existedRef, err := endpointMethodRef.setEndpointURLPath(method, urlPathParsed); nil != err {
+		c.AppendError(urlPath, method, endpointMethodRef, "cannot set urlPath to endpointMethodRef: [", err.Error(), "]")
+	} else if existedRef != nil {
+		c.AppendError(urlPath, method, endpointMethodRef, "duplicate urlPath on endpointMethodRef: [", existedRef.CanonicalPath(), "] vs. [", canonicalPath, "]")
 	}
 	if err := endpointPath.ApplyCaptureGoTypeVotes(urlPathParsed.VoteCaptureGoTypes()); nil != err {
 		c.AppendError(urlPath, method, endpointMethodRef, "cannot apply VoteCaptureGoTypes: [", err.Error(), "]")
