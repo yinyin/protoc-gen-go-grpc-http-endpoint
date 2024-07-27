@@ -27,6 +27,7 @@ type OneCodeGenDestInfo struct {
 	GoImportPath            protogen.GoImportPath
 	GoPackageName           protogen.GoPackageName
 	SourceProtoFilePaths    []string
+	MergedNgxNamingConvOpts *nameconv.Options
 }
 
 func LoadProtoIDL(gen *protogen.Plugin, dbgFileOpts *GeneratedDebugFileParam) (
@@ -39,7 +40,9 @@ func LoadProtoIDL(gen *protogen.Plugin, dbgFileOpts *GeneratedDebugFileParam) (
 		logRuntimeInformation(dbgFp, gen)
 	}
 	targetEndpointServices = make([]*EndpointService, 0)
-	destInfo = &OneCodeGenDestInfo{}
+	destInfo = &OneCodeGenDestInfo{
+		MergedNgxNamingConvOpts: nameconv.NewDefaultOptions(),
+	}
 	for _, f := range gen.Files {
 		if !f.Generate {
 			dbgFp.P("*- skip file: [", f.Desc.Path(), "]")
@@ -73,7 +76,10 @@ func LoadProtoIDL(gen *protogen.Plugin, dbgFileOpts *GeneratedDebugFileParam) (
 				pathNamingConv = NewNamingConventionConverter(fileOpts.PathNamingConvention, nccOpts)
 			}
 			if len(fileOpts.CommonInitialisms) > 0 {
-				ngxNamingConvOpts.AddCommonInitialisms(fileOpts.CommonInitialisms...)
+				ngxNamingConvOpts.AddCommonInitialisms(
+					fileOpts.CommonInitialisms...)
+				destInfo.MergedNgxNamingConvOpts.AddCommonInitialisms(
+					fileOpts.CommonInitialisms...)
 			}
 			return true
 		})
