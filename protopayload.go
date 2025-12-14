@@ -9,6 +9,14 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
+func wellknownMessageNgcTypeName(messageFullName string) (typeName string, nullableField bool) {
+	switch messageFullName {
+	case "google.protobuf.Struct":
+		return "Object", true
+	}
+	return
+}
+
 func basicNgxFieldType(field *protogen.Field, ngxFieldNameOpts *NgxFieldNameOptions) (
 	typeName string,
 	alwaysDefined, nullableField bool) {
@@ -32,29 +40,34 @@ func basicNgxFieldType(field *protogen.Field, ngxFieldNameOpts *NgxFieldNameOpti
 		fallthrough
 	case protoreflect.Uint32Kind:
 		fallthrough
-	case protoreflect.Int64Kind:
-		fallthrough
-	case protoreflect.Sint64Kind:
-		fallthrough
-	case protoreflect.Uint64Kind:
-		fallthrough
 	case protoreflect.Sfixed32Kind:
 		fallthrough
 	case protoreflect.Fixed32Kind:
 		fallthrough
 	case protoreflect.FloatKind:
 		fallthrough
+	case protoreflect.DoubleKind:
+		typeName = "number"
+	// int64s are encoded as string: https://protobuf.dev/programming-guides/proto3/#json
+	case protoreflect.Int64Kind:
+		fallthrough
+	case protoreflect.Sint64Kind:
+		fallthrough
+	case protoreflect.Uint64Kind:
+		fallthrough
 	case protoreflect.Sfixed64Kind:
 		fallthrough
 	case protoreflect.Fixed64Kind:
 		fallthrough
-	case protoreflect.DoubleKind:
-		typeName = "number"
 	case protoreflect.StringKind:
 		fallthrough
 	case protoreflect.BytesKind:
 		typeName = "string"
 	case protoreflect.MessageKind:
+		if field.Message != nil {
+			messageFullName := string(field.Message.Desc.FullName())
+			typeName, nullableField = wellknownMessageNgcTypeName(messageFullName)
+		}
 	case protoreflect.GroupKind:
 	}
 	if field.Oneof == nil {
@@ -182,7 +195,6 @@ func (s *methodPayloadMessageSorter) fillMessageFields(m *MethodPayloadMessage, 
 		ngxTypeName, ngxAlwaysDefined, ngxNullable := basicNgxFieldType(fieldRef, ngxFieldNameOpts)
 		if (payloadMsg != nil) && (ngxTypeName == "") {
 			ngxTypeName = payloadMsg.NgxName
-
 		}
 		if fieldRef.Desc.IsList() {
 			ngxTypeName = ngxTypeName + "[]"
