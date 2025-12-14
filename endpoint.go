@@ -364,6 +364,39 @@ func (em *EndpointMethod) setEndpointURLPath(method string, urlPathParsed *URLPa
 	return
 }
 
+func (em *EndpointMethod) FindEndpointURLPathForInvoke() (method string, urlPath *URLPath) {
+	if em.EndpointPostURLPath != nil {
+		return http.MethodPost, em.EndpointPostURLPath
+	}
+	if em.EndpointPutURLPath != nil {
+		return http.MethodPut, em.EndpointPutURLPath
+	}
+	if em.EndpointGetURLPath != nil {
+		return http.MethodGet, em.EndpointGetURLPath
+	}
+	if em.EndpointDeleteURLPath != nil {
+		return http.MethodDelete, em.EndpointDeleteURLPath
+	}
+	if em.EndpointPatchURLPath != nil {
+		return http.MethodPatch, em.EndpointPatchURLPath
+	}
+	if em.EndpointHeadURLPath != nil {
+		return http.MethodHead, em.EndpointHeadURLPath
+	}
+	if em.EndpointOptionsURLPath != nil {
+		return http.MethodOptions, em.EndpointOptionsURLPath
+	}
+	return "", nil
+}
+
+func (em *EndpointMethod) IsOpenTelemetryEnabled() bool {
+	if em.ParentService == nil {
+		return false
+	}
+	enableOpenTelemetry := em.ParentService.Options.EnableOpentelemetry && (!em.Options.DisableOpentelemetry)
+	return enableOpenTelemetry
+}
+
 type EndpointURLPathMethod struct {
 	URLPath   *URLPath
 	MethodRef *EndpointMethod
@@ -668,4 +701,13 @@ func (c *EndpointPathContainer) SortedStreamMethods() []*protogen.Method {
 		streamMethods = append(streamMethods, m)
 	}
 	return streamMethods
+}
+
+func (c *EndpointPathContainer) IsOpenTelemetryEnabled() bool {
+	for _, es := range c.Services {
+		if es.Options.EnableOpentelemetry {
+			return true
+		}
+	}
+	return false
 }
