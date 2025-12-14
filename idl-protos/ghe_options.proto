@@ -32,6 +32,8 @@ message GHEServiceOptions {
 	string strict_prefix_match = 2;
 
 	repeated GHEMethodOptions extra_endpoints = 3;
+
+	bool enable_opentelemetry = 4;
 }
 
 extend google.protobuf.MethodOptions {
@@ -65,4 +67,7 @@ message GHEMethodOptions {
 
 	// Handler function name for extra endpoint.
 	string go_handler_func = 10;
+
+	// Not generating OpenTelemetry tracing code.
+	bool disable_opentelemetry = 11;
 }
