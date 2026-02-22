@@ -86,13 +86,14 @@ func (x *GHEFileOptions) GetNamingOverride() map[string]string {
 }
 
 type GHEServiceOptions struct {
-	state               protoimpl.MessageState `protogen:"open.v1"`
-	Path                string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
-	StrictPrefixMatch   string                 `protobuf:"bytes,2,opt,name=strict_prefix_match,json=strictPrefixMatch,proto3" json:"strict_prefix_match,omitempty"`
-	ExtraEndpoints      []*GHEMethodOptions    `protobuf:"bytes,3,rep,name=extra_endpoints,json=extraEndpoints,proto3" json:"extra_endpoints,omitempty"`
-	EnableOpentelemetry bool                   `protobuf:"varint,4,opt,name=enable_opentelemetry,json=enableOpentelemetry,proto3" json:"enable_opentelemetry,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	state                   protoimpl.MessageState `protogen:"open.v1"`
+	Path                    string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	StrictPrefixMatch       string                 `protobuf:"bytes,2,opt,name=strict_prefix_match,json=strictPrefixMatch,proto3" json:"strict_prefix_match,omitempty"`
+	ExtraEndpoints          []*GHEMethodOptions    `protobuf:"bytes,3,rep,name=extra_endpoints,json=extraEndpoints,proto3" json:"extra_endpoints,omitempty"`
+	EnableOpentelemetry     bool                   `protobuf:"varint,4,opt,name=enable_opentelemetry,json=enableOpentelemetry,proto3" json:"enable_opentelemetry,omitempty"`
+	DisableCrossOriginCheck bool                   `protobuf:"varint,5,opt,name=disable_cross_origin_check,json=disableCrossOriginCheck,proto3" json:"disable_cross_origin_check,omitempty"`
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
 }
 
 func (x *GHEServiceOptions) Reset() {
@@ -153,6 +154,13 @@ func (x *GHEServiceOptions) GetEnableOpentelemetry() bool {
 	return false
 }
 
+func (x *GHEServiceOptions) GetDisableCrossOriginCheck() bool {
+	if x != nil {
+		return x.DisableCrossOriginCheck
+	}
+	return false
+}
+
 type GHEMethodOptions struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Path for invoke this method with HTTP GET method.
@@ -177,6 +185,8 @@ type GHEMethodOptions struct {
 	GoHandlerFunc string `protobuf:"bytes,10,opt,name=go_handler_func,json=goHandlerFunc,proto3" json:"go_handler_func,omitempty"`
 	// Not generating OpenTelemetry tracing code.
 	DisableOpentelemetry bool `protobuf:"varint,11,opt,name=disable_opentelemetry,json=disableOpentelemetry,proto3" json:"disable_opentelemetry,omitempty"`
+	// Not generating cross origin check code.
+	SkipCrossOriginCheck bool `protobuf:"varint,12,opt,name=skip_cross_origin_check,json=skipCrossOriginCheck,proto3" json:"skip_cross_origin_check,omitempty"`
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
 }
@@ -288,6 +298,13 @@ func (x *GHEMethodOptions) GetDisableOpentelemetry() bool {
 	return false
 }
 
+func (x *GHEMethodOptions) GetSkipCrossOriginCheck() bool {
+	if x != nil {
+		return x.SkipCrossOriginCheck
+	}
+	return false
+}
+
 var file_ghe_options_proto_extTypes = []protoimpl.ExtensionInfo{
 	{
 		ExtendedType:  (*descriptorpb.FileOptions)(nil),
@@ -344,12 +361,13 @@ const file_ghe_options_proto_rawDesc = "" +
 	"\x0fnaming_override\x18\x03 \x03(\v25.grpc.httpendpoint.GHEFileOptions.NamingOverrideEntryR\x0enamingOverride\x1aA\n" +
 	"\x13NamingOverrideEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xd8\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x95\x02\n" +
 	"\x11GHEServiceOptions\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12.\n" +
 	"\x13strict_prefix_match\x18\x02 \x01(\tR\x11strictPrefixMatch\x12L\n" +
 	"\x0fextra_endpoints\x18\x03 \x03(\v2#.grpc.httpendpoint.GHEMethodOptionsR\x0eextraEndpoints\x121\n" +
-	"\x14enable_opentelemetry\x18\x04 \x01(\bR\x13enableOpentelemetry\"\x91\x03\n" +
+	"\x14enable_opentelemetry\x18\x04 \x01(\bR\x13enableOpentelemetry\x12;\n" +
+	"\x1adisable_cross_origin_check\x18\x05 \x01(\bR\x17disableCrossOriginCheck\"\xc8\x03\n" +
 	"\x10GHEMethodOptions\x12\x10\n" +
 	"\x03get\x18\x01 \x01(\tR\x03get\x12\x12\n" +
 	"\x04post\x18\x02 \x01(\tR\x04post\x12\x10\n" +
@@ -362,7 +380,8 @@ const file_ghe_options_proto_rawDesc = "" +
 	"\x05ident\x18\t \x01(\tR\x05ident\x12&\n" +
 	"\x0fgo_handler_func\x18\n" +
 	" \x01(\tR\rgoHandlerFunc\x123\n" +
-	"\x15disable_opentelemetry\x18\v \x01(\bR\x14disableOpentelemetry:U\n" +
+	"\x15disable_opentelemetry\x18\v \x01(\bR\x14disableOpentelemetry\x125\n" +
+	"\x17skip_cross_origin_check\x18\f \x01(\bR\x14skipCrossOriginCheck:U\n" +
 	"\x04opts\x12\x1c.google.protobuf.FileOptions\x18҆\x03 \x01(\v2!.grpc.httpendpoint.GHEFileOptionsR\x04opts:[\n" +
 	"\x04base\x12\x1f.google.protobuf.ServiceOptions\x18҆\x03 \x01(\v2$.grpc.httpendpoint.GHEServiceOptionsR\x04base:a\n" +
 	"\bendpoint\x12\x1e.google.protobuf.MethodOptions\x18҆\x03 \x01(\v2#.grpc.httpendpoint.GHEMethodOptionsR\bendpointB;Z9github.com/yinyin/protoc-gen-go-grpc-http-endpoint/ghegenb\x06proto3"

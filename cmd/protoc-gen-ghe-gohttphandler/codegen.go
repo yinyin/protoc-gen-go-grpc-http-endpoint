@@ -286,6 +286,16 @@ func genEndpointPathServeRequest(
 		rg.P("ctx, span := ", param.handlerReceiverName, ".otelSpanBuilder.Start(ctx, r, ", strconv.Quote(genEndpointPathServeSpanName(pathMethod)), ")")
 		rg.P("defer span.End()")
 	}
+	if pathMethod.MethodRef.IsCrossOriginCheckEnabled() {
+		rg.P("if err := ", param.handlerReceiverName, ".crossOriginProtect.Check(r); nil != err {")
+		rg.P(httpPackage.Ident("Error"), "(w, \"cross origin check failed\", ", httpPackage.Ident("StatusForbidden"), ")")
+		if enableOpenTelemetry {
+			rg.P("span.RecordError(err)")
+			rg.P("span.SetStatus(", otelCodesPackage.Ident("Error"), ", \"cross origin check failed\")")
+		}
+		rg.P("return")
+		rg.P("}")
+	}
 	if pathMethod.MethodRef.IsExtraEndpoint {
 		// TODO: setup OpenTelemetry span
 		genInvokeGoHandlerFunc(rg, param, enableOpenTelemetry, pathMethod.MethodRef.Options.GoHandlerFunc, captureArgs)
@@ -480,6 +490,9 @@ func genRouteCode(
 	}
 	if endpointPaths.IsOpenTelemetryEnabled() {
 		rg.P("otelSpanBuilder ", otelUtilPackage.Ident("HTTPRequestSpanBuilder"))
+	}
+	if endpointPaths.IsCrossOriginCheckEnabled() {
+		rg.P("crossOriginProtect *", httpPackage.Ident("CrossOriginProtection"))
 	}
 	rg.P("marshalOptions ", protojsonPackage.Ident("MarshalOptions"))
 	rg.P("unmarshalOptions ", protojsonPackage.Ident("UnmarshalOptions"))

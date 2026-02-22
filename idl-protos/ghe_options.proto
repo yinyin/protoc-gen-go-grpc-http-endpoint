@@ -34,6 +34,8 @@ message GHEServiceOptions {
 	repeated GHEMethodOptions extra_endpoints = 3;
 
 	bool enable_opentelemetry = 4;
+
+	bool disable_cross_origin_check = 5;
 }
 
 extend google.protobuf.MethodOptions {
@@ -70,4 +72,7 @@ message GHEMethodOptions {
 
 	// Not generating OpenTelemetry tracing code.
 	bool disable_opentelemetry = 11;
+
+	// Not generating cross origin check code.
+	bool skip_cross_origin_check = 12;
 }

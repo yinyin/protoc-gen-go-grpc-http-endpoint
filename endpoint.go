@@ -397,6 +397,14 @@ func (em *EndpointMethod) IsOpenTelemetryEnabled() bool {
 	return enableOpenTelemetry
 }
 
+func (em *EndpointMethod) IsCrossOriginCheckEnabled() bool {
+	if em.ParentService == nil {
+		return false
+	}
+	enableCrossOriginCheck := (!em.ParentService.Options.DisableCrossOriginCheck) && (!em.Options.SkipCrossOriginCheck)
+	return enableCrossOriginCheck
+}
+
 type EndpointURLPathMethod struct {
 	URLPath   *URLPath
 	MethodRef *EndpointMethod
@@ -706,6 +714,15 @@ func (c *EndpointPathContainer) SortedStreamMethods() []*protogen.Method {
 func (c *EndpointPathContainer) IsOpenTelemetryEnabled() bool {
 	for _, es := range c.Services {
 		if es.Options.EnableOpentelemetry {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *EndpointPathContainer) IsCrossOriginCheckEnabled() bool {
+	for _, es := range c.Services {
+		if !es.Options.DisableCrossOriginCheck {
 			return true
 		}
 	}
