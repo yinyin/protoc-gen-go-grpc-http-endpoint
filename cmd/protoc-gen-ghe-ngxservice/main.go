@@ -61,6 +61,9 @@ func main() {
 		gen.SupportedEditionsMaximum = descriptorpb.Edition_EDITION_2024
 		// targetEndpointServices, endpointPathContainer, destInfo, dbgFp :=protocgenghe.LoadProtoIDL(gen, generateDebugInfo)
 		_, endpointPathContainer, destInfo, dbgFp := protocgenghe.LoadProtoIDL(gen, getGeneratedDebugFileParam(generateDebugInfo))
+		if err := endpointPathContainer.Err(); err != nil {
+			return fmt.Errorf("failed on loading IDL: %w", err)
+		}
 		logCodeGenParameters(dbgFp, &codeGenParam)
 		if destInfo.GeneratedFilenamePrefix == "" {
 			dbgFp.P("* ERROR: no target generated filename prefix")

@@ -74,10 +74,13 @@ func main() {
 		// targetEndpointServices, endpointPathContainer, destInfo, dbgFp :=protocgenghe.LoadProtoIDL(gen, generateDebugInfo)
 		_, endpointPathContainer, destInfo, dbgFp := protocgenghe.LoadProtoIDL(gen, getGeneratedDebugFileParam(generateDebugInfo))
 		logCodeGenParameters(dbgFp, &codeGenParam)
+		if err := endpointPathContainer.Err(); err != nil {
+			return fmt.Errorf("failed on loading IDL: %w", err)
+		}
 		routeRadixRoot := protocgenghe.NewURLRouteRadixRoot()
 		if err := routeRadixRoot.ImportEndpointPaths(endpointPathContainer.SortedEndpointPaths()); err != nil {
 			dbgFp.P("* ERROR: cannot import endpoint paths: ", err)
-			return err
+			return fmt.Errorf("failed on feed endpoint paths into radix tree: %w", err)
 		} else if dbgFp != nil {
 			dbgFp.P("*** generated radix tree: [[[")
 			logURLRouteRadixNode(dbgFp, routeRadixRoot)

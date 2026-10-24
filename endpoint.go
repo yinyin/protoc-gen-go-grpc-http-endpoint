@@ -291,6 +291,10 @@ func (em *EndpointMethod) FindInputFieldRef(fieldName string) (fieldRef *Capture
 	} else if fieldRef = em.CachedInputFieldRef[fieldName]; fieldRef != nil {
 		return
 	}
+	if em.DescRef == nil {
+		err = fmt.Errorf("cannot resolve %s: endpoint ident [%s] not associate with message", fieldName, em.Options.Ident)
+		return
+	}
 	fieldPathNames := strings.Split(fieldName, ".")
 	goNameRef := make([]string, 0, len(fieldPathNames))
 	currentMessage := em.DescRef.Input
@@ -532,6 +536,17 @@ func NewEndpointPathContainer() *EndpointPathContainer {
 	}
 }
 
+func (c *EndpointPathContainer) Err() error {
+	if len(c.Errors) == 0 {
+		return nil
+	}
+	var errS []error
+	for _, errRef := range c.Errors {
+		errS = append(errS, errors.New(errRef.URLPath+": "+errRef.MessageText))
+	}
+	return errors.Join(errS...)
+}
+
 func (c *EndpointPathContainer) AppendError(urlPath, method string, endpointMethodRef *EndpointMethod, args ...interface{}) {
 	c.Errors = append(c.Errors, &EndpointPathError{
 		URLPath:           urlPath,
@@ -598,7 +613,11 @@ func (c *EndpointPathContainer) recordStreamMethod(endpointMethodRef *EndpointMe
 }
 
 func (c *EndpointPathContainer) AddEndpointPath(urlPath, method string, endpointMethodRef *EndpointMethod) {
-	c.Traces = append(c.Traces, urlPath+"\t["+method+"]\t"+endpointMethodRef.DescRef.GoName)
+	if endpointMethodRef.DescRef != nil {
+		c.Traces = append(c.Traces, urlPath+"\t["+method+"]\t"+endpointMethodRef.DescRef.GoName)
+	} else {
+		c.Traces = append(c.Traces, urlPath+"\t["+method+"]\t(ExtraEndpoint):"+endpointMethodRef.Options.Ident)
+	}
 	urlPathParsed, err := c.parseURLPathWithEndpointMethod(urlPath, endpointMethodRef, method)
 	if err != nil {
 		return
