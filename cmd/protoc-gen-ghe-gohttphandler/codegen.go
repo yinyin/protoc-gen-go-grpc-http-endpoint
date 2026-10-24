@@ -271,6 +271,9 @@ func genEndpointPathServeFunctionSignature(
 }
 
 func genEndpointPathServeSpanName(pathMethod *protocgenghe.EndpointURLPathMethod) string {
+	if pathMethod.MethodRef.DescRef == nil {
+		return pathMethod.MethodRef.ParentService.DescRef.GoName + "/Extra:" + pathMethod.MethodRef.Options.Ident
+	}
 	return pathMethod.MethodRef.ParentService.DescRef.GoName + "/" + pathMethod.MethodRef.DescRef.GoName
 }
 

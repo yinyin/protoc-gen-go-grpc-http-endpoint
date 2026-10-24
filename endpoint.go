@@ -81,7 +81,7 @@ func (es *EndpointService) mergeStrictPrefixMatchLenOption() {
 
 func (es *EndpointService) mergeExtraEndpointsOptions() {
 	for _, extraEndpointOpts := range es.Options.ExtraEndpoints {
-		em := NewEndpointMethodWithNormalizedOptions(extraEndpointOpts, es.RouteIdentMiddle)
+		em := NewEndpointMethodWithNormalizedOptions(extraEndpointOpts, es.RouteIdentMiddle, es)
 		es.ExtraEndpoints = append(es.ExtraEndpoints, em)
 	}
 }
@@ -149,10 +149,11 @@ func NewEndpointMethod(
 	}
 }
 
-func NewEndpointMethodWithNormalizedOptions(opts *ghegen.GHEMethodOptions, routeIdentMiddle string) *EndpointMethod {
+func NewEndpointMethodWithNormalizedOptions(opts *ghegen.GHEMethodOptions, routeIdentMiddle string, parentService *EndpointService) *EndpointMethod {
 	em := &EndpointMethod{
 		RouteIdentMiddle: routeIdentMiddle,
 		IsExtraEndpoint:  true,
+		ParentService:    parentService,
 	}
 	proto.Merge(&em.Options, opts)
 	em.mergeOptions()
