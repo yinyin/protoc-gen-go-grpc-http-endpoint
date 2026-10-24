@@ -578,6 +578,7 @@ func (c *EndpointPathContainer) parseURLPathWithEndpointMethod(urlPath string, e
 			}
 		}
 	}
+	urlPathParsed.setupCaptureIndexes()
 	return
 }
 

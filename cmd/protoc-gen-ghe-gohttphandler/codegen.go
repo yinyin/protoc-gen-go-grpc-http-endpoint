@@ -2,8 +2,10 @@ package main
 
 import (
 	"strconv"
+	"strings"
 
 	"google.golang.org/protobuf/compiler/protogen"
+	"google.golang.org/protobuf/types/gofeaturespb"
 
 	protocgenghe "github.com/yinyin/protoc-gen-go-grpc-http-endpoint"
 )
@@ -372,7 +374,32 @@ func genEndpointPathServeRequest(
 			rg.P("return")
 			rg.P("}")
 		}
-		// TODO: assign params from capture
+		assignToFields, assignWithSetters := pathMethod.URLPath.FindCaptureRequestMessageAssignment()
+		if len(assignToFields) > 0 {
+			if pathMethod.MethodRef.DescRef.Input.APILevel == gofeaturespb.GoFeatures_API_OPAQUE {
+				for _, assignField := range assignToFields {
+					reqVarName := makeCaptureVarName(assignField.CaptureIndex, assignField.CaptureGoType())
+					opaqueSetFn, _ := assignField.DestFieldRef.DescRef.MethodName("Set")
+					rg.P("req.", opaqueSetFn, "(", reqVarName, ")")
+				}
+			} else {
+				for _, assignField := range assignToFields {
+					reqVarName := makeCaptureVarName(assignField.CaptureIndex, assignField.CaptureGoType())
+					rg.P("req.", assignField.DestFieldRef.DescRef.GoName, "=", reqVarName)
+				}
+			}
+		}
+		if len(assignWithSetters) > 0 {
+			for _, setterCallable := range assignWithSetters {
+				reqVarName := makeCaptureVarName(setterCallable.CaptureIndex, setterCallable.CaptureGoType())
+				if len(setterCallable.DestSetterArgs) > 0 {
+					setterArgs := strings.Join(setterCallable.DestSetterArgs, ", ")
+					rg.P("req.", setterCallable.DestSetterFuncName, "(", reqVarName, ",", setterArgs, ")")
+				} else {
+					rg.P("req.", setterCallable.DestSetterFuncName, "(", reqVarName, ")")
+				}
+			}
+		}
 		hndInvokeMethodReference := "hnd" + pathMethod.MethodRef.ParentService.DescRef.GoName + "." + pathMethod.MethodRef.DescRef.GoName
 		rg.P("if res, err := ", param.handlerReceiverName, ".", hndInvokeMethodReference, "(ctx, &req); nil == err {")
 		if pathMethod.MethodRef.Options.GoExtractHttpStatusCode != "" {

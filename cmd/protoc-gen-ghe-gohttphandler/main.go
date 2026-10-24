@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"google.golang.org/protobuf/compiler/protogen"
+	"google.golang.org/protobuf/types/descriptorpb"
 	"google.golang.org/protobuf/types/pluginpb"
 
 	protocgenghe "github.com/yinyin/protoc-gen-go-grpc-http-endpoint"
@@ -67,7 +68,9 @@ func main() {
 	protogen.Options{
 		ParamFunc: flags.Set,
 	}.Run(func(gen *protogen.Plugin) error {
-		gen.SupportedFeatures = uint64(pluginpb.CodeGeneratorResponse_FEATURE_PROTO3_OPTIONAL)
+		gen.SupportedFeatures = uint64(pluginpb.CodeGeneratorResponse_FEATURE_PROTO3_OPTIONAL | pluginpb.CodeGeneratorResponse_FEATURE_SUPPORTS_EDITIONS)
+		gen.SupportedEditionsMinimum = descriptorpb.Edition_EDITION_2023
+		gen.SupportedEditionsMaximum = descriptorpb.Edition_EDITION_2024
 		// targetEndpointServices, endpointPathContainer, destInfo, dbgFp :=protocgenghe.LoadProtoIDL(gen, generateDebugInfo)
 		_, endpointPathContainer, destInfo, dbgFp := protocgenghe.LoadProtoIDL(gen, getGeneratedDebugFileParam(generateDebugInfo))
 		logCodeGenParameters(dbgFp, &codeGenParam)

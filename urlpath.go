@@ -146,7 +146,8 @@ type URLPathPart struct {
 	//FixedPath []byte
 
 	// URLPathPartCapture
-	CaptureName string
+	CaptureIndex int
+	CaptureName  string
 	//PatternByteMapper ByteMapper
 	// - to protobuf field property
 	DestFieldName string
@@ -181,6 +182,16 @@ type URLPath struct {
 	Parts   []*URLPathPart
 }
 
+func (u *URLPath) setupCaptureIndexes() {
+	captureIndex := 0
+	for _, part := range u.Parts {
+		if part.PartType == URLPathPartCapture {
+			part.CaptureIndex = captureIndex
+			captureIndex++
+		}
+	}
+}
+
 func (u *URLPath) CanonicalPath() string {
 	var result string
 	for _, part := range u.Parts {
@@ -203,6 +214,21 @@ func (u *URLPath) VoteCaptureGoTypes() (votes []string) {
 	for _, part := range u.Parts {
 		if part.PartType == URLPathPartCapture {
 			votes = append(votes, part.CaptureGoType())
+		}
+	}
+	return
+}
+
+func (u *URLPath) FindCaptureRequestMessageAssignment() (assignToFields, assignWithSetters []*URLPathPart) {
+	for _, part := range u.Parts {
+		if part.PartType != URLPathPartCapture {
+			continue
+		}
+		if part.DestFieldRef != nil {
+			assignToFields = append(assignToFields, part)
+		}
+		if part.DestSetterArg0Type != "" {
+			assignWithSetters = append(assignWithSetters, part)
 		}
 	}
 	return
