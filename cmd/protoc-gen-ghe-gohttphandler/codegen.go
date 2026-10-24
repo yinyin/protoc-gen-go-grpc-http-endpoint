@@ -226,6 +226,7 @@ func genInvokeGoHandlerFunc(
 	rg *protogen.GeneratedFile,
 	param *codeGenParameters,
 	enableOpenTelemetry bool,
+	hasReturnErrValue bool,
 	handlerFuncRefName,
 	captureArgs string) {
 	if handlerFuncRefName == "" {
@@ -238,7 +239,16 @@ func genInvokeGoHandlerFunc(
 	if handlerFuncRefName[0] == '.' {
 		handlerFuncRefName = param.handlerReceiverName + handlerFuncRefName
 	}
-	rg.P(handlerFuncRefName, "(ctx, w, r", captureArgs, ")")
+	if enableOpenTelemetry && hasReturnErrValue {
+		rg.P("if err := ", handlerFuncRefName, "(ctx, w, r", captureArgs, "); nil != err {")
+		rg.P("span.RecordError(err)")
+		rg.P("span.SetStatus(", otelCodesPackage.Ident("Error"), ", \"error from handler: ", handlerFuncRefName, "\")")
+		rg.P("} else {")
+		rg.P("span.SetStatus(", otelCodesPackage.Ident("Ok"), ", \"\")")
+		rg.P("}")
+	} else {
+		rg.P(handlerFuncRefName, "(ctx, w, r", captureArgs, ")")
+	}
 }
 
 func makeEndpointPathServeFunctionName(
@@ -305,7 +315,7 @@ func genEndpointPathServeRequest(
 		// TODO: setup OpenTelemetry span
 		assignToHandlerParams := pathMethod.URLPath.FindCaptureCustomHandlerParamAssignments()
 		customHandlerFuncRefName, customHandlerCaptureArgs := replaceCaptureParamRef(pathMethod.MethodRef.Options.GoHandlerFunc, assignToHandlerParams)
-		genInvokeGoHandlerFunc(rg, param, enableOpenTelemetry, customHandlerFuncRefName, customHandlerCaptureArgs)
+		genInvokeGoHandlerFunc(rg, param, enableOpenTelemetry, true, customHandlerFuncRefName, customHandlerCaptureArgs)
 		rg.P("return")
 	} else if pathMethod.MethodRef.IsStreamMethod() {
 		rg.P("c, err := ", param.handlerReceiverName, ".websocketUpgrader.Upgrade(w, r, nil)")
@@ -457,7 +467,7 @@ func genEndpointPathServeFn(
 			rg.P("ctx, span := ", param.handlerReceiverName, ".otelSpanBuilder.Start(ctx, r, ", strconv.Quote(serveFuncName), ")")
 			rg.P("defer span.End()")
 		}
-		genInvokeGoHandlerFunc(rg, param, enableOpenTelemetry,
+		genInvokeGoHandlerFunc(rg, param, enableOpenTelemetry, true,
 			pathMethod.MethodRef.Options.GoHeadHandlerFunc, captureArgs)
 		rg.P("return")
 		rg.P("}")
@@ -472,7 +482,7 @@ func genEndpointPathServeFn(
 			rg.P("ctx, span := ", param.handlerReceiverName, ".otelSpanBuilder.Start(ctx, r, ", strconv.Quote(serveFuncName), ")")
 			rg.P("defer span.End()")
 		}
-		genInvokeGoHandlerFunc(rg, param, enableOpenTelemetry,
+		genInvokeGoHandlerFunc(rg, param, enableOpenTelemetry, false,
 			pathMethod.MethodRef.Options.GoOptionsHandlerFunc, captureArgs)
 		rg.P("return")
 		rg.P("}")
