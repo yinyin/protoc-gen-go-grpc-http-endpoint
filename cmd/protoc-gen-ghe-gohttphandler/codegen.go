@@ -281,7 +281,7 @@ func genEndpointPathServeRequest(
 	methodIdent string,
 	parseRequestBody bool) {
 	captureGoTypes := pathMethod.URLPath.VoteCaptureGoTypes()
-	captureParams, captureArgs := makeCaptureParamArgList(captureGoTypes)
+	captureParams := makeCaptureParamList(captureGoTypes)
 	serveFuncName := genEndpointPathServeFunctionSignature(rg, param, pathMethod, methodIdent, captureParams)
 	enableOpenTelemetry := pathMethod.MethodRef.IsOpenTelemetryEnabled()
 	if enableOpenTelemetry {
@@ -300,7 +300,9 @@ func genEndpointPathServeRequest(
 	}
 	if pathMethod.MethodRef.IsExtraEndpoint {
 		// TODO: setup OpenTelemetry span
-		genInvokeGoHandlerFunc(rg, param, enableOpenTelemetry, pathMethod.MethodRef.Options.GoHandlerFunc, captureArgs)
+		assignToHandlerParams := pathMethod.URLPath.FindCaptureCustomHandlerParamAssignments()
+		customHandlerFuncRefName, customHandlerCaptureArgs := replaceCaptureParamRef(pathMethod.MethodRef.Options.GoHandlerFunc, assignToHandlerParams)
+		genInvokeGoHandlerFunc(rg, param, enableOpenTelemetry, customHandlerFuncRefName, customHandlerCaptureArgs)
 		rg.P("return")
 	} else if pathMethod.MethodRef.IsStreamMethod() {
 		rg.P("c, err := ", param.handlerReceiverName, ".websocketUpgrader.Upgrade(w, r, nil)")

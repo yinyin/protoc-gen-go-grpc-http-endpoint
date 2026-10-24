@@ -234,6 +234,18 @@ func (u *URLPath) FindCaptureRequestMessageAssignment() (assignToFields, assignW
 	return
 }
 
+func (u *URLPath) FindCaptureCustomHandlerParamAssignments() (assignToHandlerParams []*URLPathPart) {
+	for _, part := range u.Parts {
+		if part.PartType != URLPathPartCapture {
+			continue
+		}
+		if part.DestHandlerParamType != "" {
+			assignToHandlerParams = append(assignToHandlerParams, part)
+		}
+	}
+	return
+}
+
 type urlPathPartParser interface {
 	Feed(result *URLPath, idx int, ch byte) (nextParser urlPathPartParser, err error)
 	Finish(result *URLPath) (err error)
