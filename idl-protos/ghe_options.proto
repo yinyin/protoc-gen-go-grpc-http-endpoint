@@ -36,6 +36,8 @@ message GHEServiceOptions {
 	bool enable_opentelemetry = 4;
 
 	bool disable_cross_origin_check = 5;
+
+	bool exclude_from_openapi_spec = 6;
 }
 
 extend google.protobuf.MethodOptions {
@@ -75,4 +77,7 @@ message GHEMethodOptions {
 
 	// Not generating cross origin check code.
 	bool skip_cross_origin_check = 12;
+
+	// Not include in the generated OpenAPI spec.
+	bool exclude_from_openapi_spec = 13;
 }
